@@ -45,6 +45,16 @@ $ docker run --init --restart=unless-stopped -d -e REDIS_HOST=my-redis -e IRC_SE
 
 For Kubernetes, just arrange to set the environment variables correctly in your pod spec.
 
+## Old TLS versions
+
+Some IRC servers run old TLS versions. You can pass options to nc via the IRC sever parameter, e.g.
+
+```
+./redis-irc-bot localhost '-T protocols=legacy -T ciphers=all irc.example.com' bot channel
+```
+
+Similar is possible for Docker.
+
 ## License
 
 [0BSD](https://dgl.cx/0bsd). No warranty.

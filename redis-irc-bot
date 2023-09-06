@@ -53,6 +53,10 @@ input() {
 
     debug "$type $topic $message"
 
+    if [[ $type != message ]]; then
+      continue
+    fi
+
     if [[ $topic = ${channel}:raw ]]; then
       echo "$message"
       if [[ "${message:0:4}" = QUIT ]]; then
@@ -75,7 +79,8 @@ output() {
       echo "$line" | cat -v
       break
     elif [[ ${line:0:1} = ":" ]]; then
-      local args=($line)
+      local args
+      readarray -td ' ' args <<<"$line"
       local cmd="${args[1]}"
 
       if [[ $cmd = "001" ]]; then
