@@ -51,7 +51,7 @@ input() {
     read topic # 2nd line
     read message # 3rd line
 
-    debug "R: $type $topic $message"
+    debug "$type $topic $message"
 
     if [[ $topic = ${channel}:raw ]]; then
       echo "$message"
@@ -72,10 +72,11 @@ output() {
     if [[ ${line:0:4} = PING ]]; then
       redis publish "${channel}:raw" "PONG${line:4}"
     elif [[ ${line:0:5} = ERROR ]]; then
+      echo "$line" | cat -v
       break
     elif [[ ${line:0:1} = ":" ]]; then
       local args=($line)
-      local cmd=${args[1]}
+      local cmd="${args[1]}"
 
       if [[ $cmd = "001" ]]; then
 	redis publish "${channel}:raw" "JOIN #${channel}"
@@ -84,8 +85,6 @@ output() {
       elif [[ $cmd = "PRIVMSG" ]]; then
         if [[ ${args[2]:0:1} = '#' ]]; then
           redis publish "${channel}:in" "$line"
-        elif [[ -n $DEBUG ]]; then
-          echo "$line" | cat -v
         fi
       fi
     fi
@@ -97,5 +96,6 @@ find-stdbuf
 
 while :; do
   echo "-- Connecting to $server and joining #${channel}"
-  input | nc -c $server 6697 | output
+  input | nc -w 240 -c $server 6697 | output
+  sleep $[5 + RANDOM % 15]
 done

@@ -35,6 +35,16 @@ send responses on `channel`.
 - [Stdbuf](https://www.gnu.org/software/coreutils/manual/html_node/stdbuf-invocation.html) from coreutils (because redis-cli does [strange buffering things](https://stackoverflow.com/a/66103101))
 - I assume you're in the modern world, so you need a netcat with the `-c` (TLS) option and a TLS IRC server.
 
+## Docker
+
+You can run this via Docker:
+
+```cli
+$ docker run --init --restart=unless-stopped -d -e REDIS_HOST=my-redis -e IRC_SERVER=irc.example.com -e IRC_NICK=somebot -e IRC_CHANNEL=foo davidgl/redis-irc-bot
+```
+
+For Kubernetes, just arrange to set the environment variables correctly in your pod spec.
+
 ## License
 
 [0BSD](https://dgl.cx/0bsd). No warranty.
