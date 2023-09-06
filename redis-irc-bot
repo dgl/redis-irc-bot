@@ -32,10 +32,22 @@ redis() {
   fi
 }
 
+find-stdbuf() {
+  # OpenBSD, etc.
+  gstdbuf --version &>/dev/null && stdbuf=gstdbuf
+  # GNU/Something
+  stdbuf --version &>/dev/null && stdbuf=stdbuf
+
+  if [[ -z $stdbuf ]]; then
+    echo "You need to install stdbuf from coreutils"
+    exit 1
+  fi
+}
+
 input() {
   echo "USER $nick * * :https://dgl.cx/redis-irc-bot"
   echo "NICK $nick"
-  stdbuf -oL redis-cli -h $redis subscribe $channel ${channel}:raw | while read type; do
+  $stdbuf -oL redis-cli -h $redis subscribe $channel ${channel}:raw | while read type; do
     read topic # 2nd line
     read message # 3rd line
 
@@ -80,6 +92,8 @@ output() {
   done
   redis publish "${channel}:raw" "QUIT"
 }
+
+find-stdbuf
 
 while :; do
   echo "-- Connecting to $server and joining #${channel}"
