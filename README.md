@@ -32,7 +32,7 @@ send responses on `channel`.
 ## Requirements
 
 - Redis somewhere and redis-cli on your machine
-- Stdbuf (because redis-cli does strange buffering things)
+- [Stdbuf](https://www.gnu.org/software/coreutils/manual/html_node/stdbuf-invocation.html) from coreutils (because redis-cli does [strange buffering things](https://stackoverflow.com/a/66103101))
 - I assume you're in the modern world, so you need a netcat with the `-c` (TLS) option and a TLS IRC server.
 
 ## License
