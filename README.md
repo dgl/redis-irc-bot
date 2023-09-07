@@ -55,6 +55,10 @@ Some IRC servers run old TLS versions. You can pass options to nc via the IRC se
 
 Similar is possible for Docker.
 
+## Things built on this
+
+- [sandbox](https://git.sr.ht/~dgl/sandbot): Crazy code execution security hole in one
+
 ## License
 
 [0BSD](https://dgl.cx/0bsd). No warranty.
