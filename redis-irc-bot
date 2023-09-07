@@ -47,9 +47,9 @@ find-stdbuf() {
 input() {
   echo "USER $nick * * :https://dgl.cx/redis-irc-bot"
   echo "NICK $nick"
-  $stdbuf -oL redis-cli -h $redis subscribe $channel ${channel}:raw | while read type; do
-    read topic # 2nd line
-    read message # 3rd line
+  $stdbuf -oL redis-cli -h $redis subscribe $channel ${channel}:raw | while read -r type; do
+    read -r topic # 2nd line
+    read -r message # 3rd line
 
     debug "$type $topic $message"
 
@@ -69,7 +69,7 @@ input() {
 }
 
 output() {
-  while read line; do
+  while read -r line; do
     line="${line//}"
     debug "$line"
 
@@ -90,6 +90,8 @@ output() {
       elif [[ $cmd = "PRIVMSG" ]]; then
         if [[ ${args[2]:0:1} = '#' ]]; then
           redis publish "${channel}:in" "$line"
+        else
+          redis publish "${channel}:priv" "$line"
         fi
       fi
     fi

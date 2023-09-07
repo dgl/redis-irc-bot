@@ -19,9 +19,9 @@ shopt -s extglob
 
 pubsub=${1:-channel}
 
-stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" | while read type; do
-  read channel # 2nd line
-  read message # 3rd line
+stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" "${pubsub}:priv" | while read -r type; do
+  read -r channel # 2nd line
+  read -r message # 3rd line
   if [[ $type != message ]]; then
     continue
   fi
@@ -29,8 +29,25 @@ stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" | while read type
   nick="${prefix/:/}"
   text="${message/:+([^ ]) +([^ ]) +([^ ]) :/}"
 
-  # Look for "!"
-  if [[ ${text:0:1} = "!" ]]; then
+  # Look for private messages
+  if [[ $channel = "${pubsub}:priv" ]]; then
+    if [[ ${text:0:1} = "!" ]]; then
+      param="${text:1}"
+    else
+      param="$text"
+    fi
+    command="${text/ */}"
+    command="${command,,?}"
+    command="${command//[^a-z0-9]/}"
+    params=""
+    if [[ ${param/* /} != $param ]]; then
+      params="${param/+([^ ]) /}"
+    fi
+    if [[ -n $command ]] && [[ -x $command ]]; then
+      echo "$params" | nick="$nick" ./$command | sed 's/^/PRIVMSG '"$nick"' :/' | xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
+    fi
+  # Look for "!" in channel
+  elif [[ ${text:0:1} = "!" ]]; then
     param="${text:1}"
     command="${param/ */}"
     command="${command,,?}"
