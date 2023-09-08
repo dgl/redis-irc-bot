@@ -53,7 +53,7 @@ stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" "${pubsub}:priv" 
     # Look for private messages
     if [[ $channel = "${pubsub}:priv" ]]; then
       echo "$params" | nick="$nick" prefix="$prefix" target="priv" ./$command | \
-        sed 's/^/PRIVMSG '"$nick"' :/' | \
+        sed -u 's/^/PRIVMSG '"$nick"' :/' | \
         xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
 
     # Look for "!" in channel

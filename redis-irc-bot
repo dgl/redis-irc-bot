@@ -13,7 +13,7 @@
 redis="${1:-127.0.0.1}"
 server="${2:-irc.example.com}"
 nick="${3:-rbot}"
-: "${4:?Usage: $0 redis-server irc-server nick channel [channel...]}"
+[[ $# -lt 4 ]] && : "${4:?Usage: $0 redis-server irc-server nick channel [channel...]}"
 
 DEBUG=${DEBUG:-}
 
@@ -78,7 +78,7 @@ find-stdbuf() {
 input() {
   echo "USER $nick * * :https://dgl.cx/redis-irc-bot"
   echo "NICK $nick"
-  $stdbuf -oL redis-cli -h $redis subscribe $RAW_TOPIC ${channels[@]} | while read -r type; do
+  $stdbuf -oL redis-cli -h $redis subscribe $RAW_TOPIC "${channels[@]}" | while read -r type; do
     read -r topic # 2nd line
     read -r message # 3rd line
 
