@@ -13,23 +13,54 @@
 redis="${1:-127.0.0.1}"
 server="${2:-irc.example.com}"
 nick="${3:-rbot}"
-channel="${4:?Usage: $0 redis-server irc-server nick channel}"
+: "${4:?Usage: $0 redis-server irc-server nick channel [channel...]}"
 
-if [[ ${channel:0:1} = '#' ]]; then
-  channel="${channel:1}"
-fi
+DEBUG=${DEBUG:-}
+
+set -u
+
+declare -a channels
+for i in $(eval "echo {4..$#}"); do
+  channel="${!i}"
+  if [[ ${channel:0:1} = '#' ]]; then
+    channel="${channel:1}"
+  fi
+  channels[$[i-4]]="$channel"
+done
+
+RAW_TOPIC="${channels[0]}:raw"
+PRIV_TOPIC="${channels[0]}:priv"
 
 debug() {
   [[ -z $DEBUG ]] && return
   echo "$*" | cat -v >&2
 }
 
-redis() {
+redis-cli() {
   if [[ -z $DEBUG ]]; then
-    redis-cli -h $redis "$@" >/dev/null
+    command redis-cli -h $redis "$@" >/dev/null
   else
-    (set -x; redis-cli -h $redis "$@")
+    (set -x; command redis-cli -h $redis "$@")
   fi
+}
+
+redis() {
+  redis-cli "$@"
+  if [[ $? != 0 ]]; then
+    # Retry once
+    sleep 2
+    redis-cli "$@"
+    if [[ $? != 0 ]]; then
+      # Redis probably gone away, bot goes away too (note because we use
+      # redis to join a channel, this won't come back until redis is back,
+      # generally the desired behaviour).
+      exit 2
+    fi
+  fi
+}
+
+raw() {
+  redis publish "$RAW_TOPIC" "$*"
 }
 
 find-stdbuf() {
@@ -47,7 +78,7 @@ find-stdbuf() {
 input() {
   echo "USER $nick * * :https://dgl.cx/redis-irc-bot"
   echo "NICK $nick"
-  $stdbuf -oL redis-cli -h $redis subscribe $channel ${channel}:raw | while read -r type; do
+  $stdbuf -oL redis-cli -h $redis subscribe $RAW_TOPIC ${channels[@]} | while read -r type; do
     read -r topic # 2nd line
     read -r message # 3rd line
 
@@ -57,7 +88,7 @@ input() {
       continue
     fi
 
-    if [[ $topic = ${channel}:raw ]]; then
+    if [[ $topic = $RAW_TOPIC ]]; then
       echo "$message"
       if [[ "${message:0:4}" = QUIT ]]; then
         break
@@ -74,7 +105,7 @@ output() {
     debug "$line"
 
     if [[ ${line:0:4} = PING ]]; then
-      redis publish "${channel}:raw" "PONG${line:4}"
+      raw "PONG${line:4}"
     elif [[ ${line:0:5} = ERROR ]]; then
       echo "$line" | cat -v
       break
@@ -84,25 +115,30 @@ output() {
       local cmd="${args[1]}"
 
       if [[ $cmd = "001" ]]; then
-	redis publish "${channel}:raw" "JOIN #${channel}"
+        join="$(printf ",#%s" "${channels[@]}")"
+        join="${join#,}"
+        raw "JOIN $join"
       elif [[ $cmd = "PING" ]]; then
-	redis publish "${channel}:raw" "PONG $nick"
+	raw "PONG $nick"
       elif [[ $cmd = "PRIVMSG" ]]; then
+        prefix="${line:1}"
+        host="${prefix%% *}"
+        text="${prefix#* :}"
         if [[ ${args[2]:0:1} = '#' ]]; then
-          redis publish "${channel}:in" "$line"
+          redis publish "${args[2]:1}:in" "$host $text"
         else
-          redis publish "${channel}:priv" "$line"
+          redis publish "$PRIV_TOPIC" "$host $text"
         fi
       fi
     fi
   done
-  redis publish "${channel}:raw" "QUIT"
+  raw "QUIT"
 }
 
 find-stdbuf
 
 while :; do
-  echo "-- Connecting to $server and joining #${channel}"
+  echo "-- Connecting to $server and joining$(printf " #%s" "${channels[@]}")"
   input | nc -w 240 -c $server 6697 | output
   sleep $[5 + RANDOM % 15]
 done

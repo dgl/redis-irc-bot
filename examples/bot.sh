@@ -4,7 +4,7 @@
 
 # Run something like:
 #   ln -s $(which uptime)
-#   ./bot.sh
+#   ./bot.sh channel
 # Then on IRC:
 #   <dg> !uptime
 #   <bot> 08:31:35  up 5 days  6:10,  2 users,  load average: 0.26, 0.57, 1.02
@@ -19,45 +19,47 @@ shopt -s extglob
 
 pubsub=${1:-channel}
 
+get_command() {
+  local command="${1/ */}"
+  command="${command#!}"
+  command="${command,,?}"
+  command="${command//[^a-z0-9]/}"
+  echo "$command"
+}
+
+get_params() {
+  local params=""
+  if [[ ${1/* /} != $1 ]]; then
+    params="${1/+([^ ]) /}"
+  fi
+  echo "$params"
+}
+
 stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" "${pubsub}:priv" | while read -r type; do
   read -r channel # 2nd line
   read -r message # 3rd line
   if [[ $type != message ]]; then
     continue
   fi
-  prefix="${message/!*/}"
-  nick="${prefix/:/}"
-  text="${message/:+([^ ]) +([^ ]) +([^ ]) :/}"
 
-  # Look for private messages
-  if [[ $channel = "${pubsub}:priv" ]]; then
-    if [[ ${text:0:1} = "!" ]]; then
-      param="${text:1}"
-    else
-      param="$text"
-    fi
-    command="${text/ */}"
-    command="${command,,?}"
-    command="${command//[^a-z0-9]/}"
-    params=""
-    if [[ ${param/* /} != $param ]]; then
-      params="${param/+([^ ]) /}"
-    fi
-    if [[ -n $command ]] && [[ -x $command ]]; then
-      echo "$params" | nick="$nick" ./$command | sed 's/^/PRIVMSG '"$nick"' :/' | xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
-    fi
-  # Look for "!" in channel
-  elif [[ ${text:0:1} = "!" ]]; then
-    param="${text:1}"
-    command="${param/ */}"
-    command="${command,,?}"
-    command="${command//[^a-z0-9]/}"
-    params=""
-    if [[ ${param/* /} != $param ]]; then
-      params="${param/+([^ ]) /}"
-    fi
-    if [[ -n $command ]] && [[ -x $command ]]; then
-      echo "$params" | nick="$nick" ./$command | xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}
+  prefix="${message/ */}"
+  nick="${prefix/!*/}"
+  text="${message/+([^ ]) /}"
+
+  command="$(get_command "$text")"
+  if [[ -n $command ]] && [[ -x $command ]]; then
+    params="$(get_params "$text")"
+
+    # Look for private messages
+    if [[ $channel = "${pubsub}:priv" ]]; then
+      echo "$params" | nick="$nick" prefix="$prefix" target="priv" ./$command | \
+        sed 's/^/PRIVMSG '"$nick"' :/' | \
+        xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
+
+    # Look for "!" in channel
+    elif [[ ${text:0:1} = "!" ]]; then
+      echo "$params" | nick="$nick" prefix="$prefix" target="#${channel%:in}" ./$command | \
+        xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}
     fi
   fi
 done
