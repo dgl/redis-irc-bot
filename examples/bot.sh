@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # A bot wrapper. This makes anything that matches [a-z0-9]+ and is executable
-# in the current directory into a "!" command.
+# in the current directory into a "!" command as well as some other useful
+# things.
 
 # Run something like:
 #   ln -s $(which uptime)
@@ -15,9 +16,24 @@
 # deal with user input in shell scripts, but that's no fun.
 
 set -eu
-shopt -s extglob
+shopt -s extglob nocasematch
 
-pubsub=${1:-channel}
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 channels..."
+  exit 1
+fi
+
+pubsub="$1"
+
+declare -a channels
+for i in $(eval "echo {1..$#}"); do
+  channel="${!i}"
+  if [[ ${channel:0:1} = '#' ]]; then
+    channel="${channel:1}"
+  fi
+  channels[$[i-1]]="$channel"
+done
+
 
 get_command() {
   local command="${1/ */}"
@@ -35,7 +51,11 @@ get_params() {
   echo "$params"
 }
 
-stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" "${pubsub}:priv" | while read -r type; do
+my_nick="$(redis-cli -h ${REDIS_HOST} --raw get "${pubsub}:nick")"
+
+stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe \
+    $(eval "echo $(printf "\"%s:in\" " "${channels[@]}")") "${pubsub}:priv" \
+    | while read -r type; do
   read -r channel # 2nd line
   read -r message # 3rd line
   if [[ $type != message ]]; then
@@ -46,20 +66,43 @@ stdbuf -oL redis-cli -h ${REDIS_HOST} subscribe "${pubsub}:in" "${pubsub}:priv" 
   nick="${prefix/!*/}"
   text="${message/+([^ ]) /}"
 
-  command="$(get_command "$text")"
-  if [[ -n $command ]] && [[ -x $command ]]; then
-    params="$(get_params "$text")"
+  if [[ $channel = "${pubsub}:priv" ]]; then
+    type="private"
+  # Look for "!" in channel
+  elif [[ ${text:0:1} = "!" ]]; then
+    type="command"
+  elif [[ -n $my_nick ]] && [[ ${text} = ${my_nick}[,:]\ * ]]; then
+    type="addressed"
+    text="${text/+([^ ]) }"
+  elif [[ "${text}" = *http*(s)://[[a-z0-9]* ]]; then
+    type="url"
+  else
+    type="text"
+  fi
 
-    # Look for private messages
-    if [[ $channel = "${pubsub}:priv" ]]; then
-      echo "$params" | nick="$nick" prefix="$prefix" target="priv" ./$command | \
-        sed -u 's/^/PRIVMSG '"$nick"' :/' | \
-        xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
-
-    # Look for "!" in channel
-    elif [[ ${text:0:1} = "!" ]]; then
-      echo "$params" | nick="$nick" prefix="$prefix" target="#${channel%:in}" ./$command | \
-        xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}
+  command=""
+  params=""
+  if [[ $type = private ]] || [[ $type = command ]] || [[ $type = addressed ]]; then
+    command="$(get_command "$text")"
+    if [[ -x $command ]]; then
+      params="$(get_params "$text")"
+    else
+      command="default-$type"
+      params="$text"
+      [[ ! -x $command ]] && continue
     fi
+  else
+    command="default-$type"
+    params="$text"
+    [[ ! -x $command ]] && continue
+  fi
+
+  if [[ $type = private ]]; then
+    echo "$params" | nick="$nick" prefix="$prefix" target="private" ./$command | \
+      sed -u 's/^/PRIVMSG '"$nick"' :/' | \
+      xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish ${pubsub}:raw
+  else
+    echo "$params" | nick="$nick" prefix="$prefix" target="#${channel%:in}" ./$command | \
+      xargs -d '\n' -r -n1 -s450 redis-cli -h ${REDIS_HOST} publish "${channel%:in}"
   fi
 done

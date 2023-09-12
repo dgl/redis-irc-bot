@@ -26,8 +26,8 @@ Send stuff:
 $ redis-cli publish channel hello
 ```
 
-For receiving stuff you can subscribe to `channel:in` and do what you like,
-send responses on `channel`.
+For receiving stuff you can subscribe to `channel:in` and do what you like (see
+[bot.sh](examples/bot.sh)), send responses on `channel`.
 
 ## Requirements
 
