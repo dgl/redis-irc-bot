@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# ©2023 David Leadbeater <https://dgl.cx/0bsd>; SPDX-License-Identifier: 0BSD
+# © David Leadbeater <http://©.st/dgl>
+# SPDX-License-Identifier: 0BSD
 #
 # A simple IRC bot using Redis pubsub. The idea is this can never change and
 # all your logic is done via talking to it via Redis pubsub.
