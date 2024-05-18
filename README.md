@@ -57,7 +57,7 @@ Similar is possible for Docker.
 
 ## Things built on this
 
-- [sandbox](https://git.sr.ht/~dgl/sandbot): Crazy code execution security hole in one
+- [sandbox](https://gi.tl/dgl/sandbot): Crazy code execution security hole in one
 
 ## License
 
