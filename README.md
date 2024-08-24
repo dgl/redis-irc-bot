@@ -34,6 +34,7 @@ For receiving stuff you can subscribe to `channel:in` and do what you like (see
 - Redis somewhere and redis-cli on your machine
 - [Stdbuf](https://www.gnu.org/software/coreutils/manual/html_node/stdbuf-invocation.html) from coreutils (because redis-cli does [strange buffering things](https://stackoverflow.com/a/66103101))
 - I assume you're in the modern world, so you need a netcat with the `-c` (TLS) option and a TLS IRC server.
+  - You might need to compile this from [LibreSSL portable's](https://github.com/libressl/portable) version of nc, as `-c` is what OpenBSD has but `netcat-openbsd` on Debian is [different](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1027124).
 
 ## Docker
 
